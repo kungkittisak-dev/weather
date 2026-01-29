@@ -11,5 +11,28 @@
     "editor.suggestSelection": "first",
     "editor.tabCompletion": "onlySnippets",
     "editor.wordBasedSuggestions": "off"
-  }
+  },
+  "files.exclude": {
+    "**/.dart_tool": true,
+    "**/.idea": true,
+    "**/build": false
+  },
+  "search.exclude": {
+    "**/build": true,
+    "**/ios/Pods": true,
+    "**/ios/.symlinks": true,
+    "**/.dart_tool": true
+  },
+  "C_Cpp.errorSquiggles": "disabled",
+  "clangd.arguments": [
+    "--compile-commands-dir=${workspaceFolder}/build"
+  ],
+  "files.associations": {
+    "*.h": "objective-c",
+    "*.m": "objective-c"
+  },
+  "clangd.fallbackFlags": [
+    "-I${workspaceFolder}/build/ios/Debug-iphonesimulator/Flutter.framework/Headers",
+    "-F${workspaceFolder}/build/ios/Debug-iphonesimulator"
+  ]
 }

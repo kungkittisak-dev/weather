@@ -1,0 +1,26 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "flutter: Build iOS Debug",
+      "type": "shell",
+      "command": "flutter",
+      "args": [
+        "build",
+        "ios",
+        "--simulator",
+        "--debug",
+        "--no-codesign"
+      ],
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      },
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    }
+  ]
+}

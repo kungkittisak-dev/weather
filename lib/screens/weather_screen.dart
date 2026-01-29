@@ -29,10 +29,19 @@ class _WeatherScreenState extends State<WeatherScreen> {
   }
 
   Future<void> loadWeather(String cityName) async {
-    if (cityName.trim().isEmpty) {
+    // Validate input
+    final trimmedCityName = cityName.trim();
+    if (trimmedCityName.isEmpty) {
       setState(() {
         errorMessage = 'Please enter a city name';
+        weather = null;
       });
+      _showErrorSnackBar('Please enter a city name', canRetry: false);
+      return;
+    }
+
+    // Prevent duplicate requests
+    if (isLoading) {
       return;
     }
 
@@ -42,36 +51,109 @@ class _WeatherScreenState extends State<WeatherScreen> {
     });
 
     try {
-      final fetchedWeather = await WeatherApi.fetchWeatherByCity(cityName);
+      final fetchedWeather = await WeatherApi.fetchWeatherByCity(trimmedCityName);
+
+      // Check if widget is still mounted before updating state
+      if (!mounted) return;
 
       setState(() {
         weather = fetchedWeather;
+        errorMessage = null;
       });
     } catch (e) {
+      // Check if widget is still mounted before updating state
+      if (!mounted) return;
+
+      final errorText = _formatErrorMessage(e);
+      final canRetry = _canRetryError(e);
+
       setState(() {
-        errorMessage = e.toString().replaceAll('Exception: ', '');
+        errorMessage = errorText;
         weather = null;
       });
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(e.toString().replaceAll('Exception: ', '')),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 5),
-            action: SnackBarAction(
-              label: 'Retry',
-              textColor: Colors.white,
-              onPressed: () => loadWeather(cityName),
-            ),
-          ),
-        );
-      }
+      _showErrorSnackBar(errorText, canRetry: canRetry, retryCity: trimmedCityName);
     } finally {
-      setState(() {
-        isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
+      }
     }
+  }
+
+  String _formatErrorMessage(dynamic error) {
+    final errorString = error.toString();
+
+    // Remove common prefixes
+    String message = errorString
+        .replaceAll('Exception: ', '')
+        .replaceAll('FormatException: ', '')
+        .replaceAll('WeatherApiException: ', '');
+
+    // Add user-friendly context for common errors
+    if (message.contains('City not found')) {
+      return 'City not found\nPlease check the spelling and try again';
+    } else if (message.contains('No internet connection')) {
+      return 'No internet connection\nPlease check your network settings';
+    } else if (message.contains('timeout') || message.contains('Timeout')) {
+      return 'Request timed out\nThe server is not responding';
+    } else if (message.contains('SSL') || message.contains('Certificate')) {
+      return 'SSL Certificate error\nTry restarting the app';
+    } else if (message.contains('Invalid API key')) {
+      return 'API configuration error\nPlease contact support';
+    } else if (message.contains('rate limit')) {
+      return 'Too many requests\nPlease wait a moment and try again';
+    } else if (message.contains('Server error')) {
+      return 'Weather service unavailable\nPlease try again later';
+    }
+
+    // Return the formatted message
+    return message.split('\n').first;
+  }
+
+  bool _canRetryError(dynamic error) {
+    final errorString = error.toString().toLowerCase();
+
+    // Don't retry for validation errors
+    if (errorString.contains('city name cannot be empty') ||
+        errorString.contains('invalid api key') ||
+        errorString.contains('api configuration')) {
+      return false;
+    }
+
+    // Retry for network and temporary errors
+    return errorString.contains('timeout') ||
+        errorString.contains('connection') ||
+        errorString.contains('network') ||
+        errorString.contains('server error') ||
+        errorString.contains('try again');
+  }
+
+  void _showErrorSnackBar(String message, {bool canRetry = true, String? retryCity}) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).clearSnackBars();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red.shade700,
+        duration: const Duration(seconds: 6),
+        behavior: SnackBarBehavior.floating,
+        action: canRetry
+            ? SnackBarAction(
+                label: 'Retry',
+                textColor: Colors.white,
+                onPressed: () {
+                  final cityToRetry = retryCity ?? _cityController.text;
+                  if (cityToRetry.isNotEmpty) {
+                    loadWeather(cityToRetry);
+                  }
+                },
+              )
+            : null,
+      ),
+    );
   }
 
   @override
@@ -90,22 +172,62 @@ class _WeatherScreenState extends State<WeatherScreen> {
                 Expanded(
                   child: TextField(
                     controller: _cityController,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'City Name',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.location_city),
+                      border: const OutlineInputBorder(),
+                      prefixIcon: const Icon(Icons.location_city),
+                      suffixIcon: _cityController.text.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear),
+                              onPressed: () {
+                                setState(() {
+                                  _cityController.clear();
+                                  errorMessage = null;
+                                });
+                              },
+                            )
+                          : null,
+                      errorText: errorMessage != null &&
+                              _cityController.text.trim().isEmpty
+                          ? 'Please enter a city name'
+                          : null,
+                      helperText: 'e.g., Bangkok, Tokyo, London',
                     ),
+                    textCapitalization: TextCapitalization.words,
+                    autocorrect: false,
+                    enableSuggestions: true,
+                    textInputAction: TextInputAction.search,
                     onSubmitted: (value) => loadWeather(value),
+                    onChanged: (value) {
+                      // Clear error when user starts typing
+                      if (errorMessage != null && value.trim().isNotEmpty) {
+                        setState(() {
+                          errorMessage = null;
+                        });
+                      }
+                    },
                   ),
                 ),
                 const SizedBox(width: 8),
                 IconButton(
-                  icon: const Icon(Icons.search),
-                  onPressed: () => loadWeather(_cityController.text),
+                  icon: isLoading
+                      ? const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(Icons.search),
+                  onPressed: isLoading ? null : () => loadWeather(_cityController.text),
                   style: IconButton.styleFrom(
-                    backgroundColor: Theme.of(context).colorScheme.primary,
+                    backgroundColor: isLoading
+                        ? Colors.grey
+                        : Theme.of(context).colorScheme.primary,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.all(16),
+                    disabledBackgroundColor: Colors.grey,
                   ),
                 ),
               ],
@@ -113,25 +235,66 @@ class _WeatherScreenState extends State<WeatherScreen> {
             const SizedBox(height: 24),
             Expanded(
               child: isLoading
-                  ? const Center(child: CircularProgressIndicator())
+                  ? const Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          CircularProgressIndicator(),
+                          SizedBox(height: 16),
+                          Text(
+                            'Loading weather data...',
+                            style: TextStyle(fontSize: 16, color: Colors.grey),
+                          ),
+                        ],
+                      ),
+                    )
                   : weather == null
                       ? Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.cloud_off,
-                                size: 80,
-                                color: Colors.grey[400],
-                              ),
-                              const SizedBox(height: 16),
-                              Text(
-                                errorMessage ??
-                                    'Enter a city name to get weather',
-                                style: const TextStyle(fontSize: 16),
-                                textAlign: TextAlign.center,
-                              ),
-                            ],
+                          child: Padding(
+                            padding: const EdgeInsets.all(24.0),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  errorMessage != null
+                                      ? Icons.error_outline
+                                      : Icons.cloud_off,
+                                  size: 80,
+                                  color: errorMessage != null
+                                      ? Colors.red.shade300
+                                      : Colors.grey[400],
+                                ),
+                                const SizedBox(height: 24),
+                                Text(
+                                  errorMessage ??
+                                      'Enter a city name to get weather',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    color: errorMessage != null
+                                        ? Colors.red.shade700
+                                        : Colors.grey[600],
+                                    fontWeight: errorMessage != null
+                                        ? FontWeight.w500
+                                        : FontWeight.normal,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                                if (errorMessage != null) ...[
+                                  const SizedBox(height: 24),
+                                  ElevatedButton.icon(
+                                    onPressed: () => loadWeather(_cityController.text),
+                                    icon: const Icon(Icons.refresh),
+                                    label: const Text('Try Again'),
+                                    style: ElevatedButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 24,
+                                        vertical: 12,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
                           ),
                         )
                       : SingleChildScrollView(

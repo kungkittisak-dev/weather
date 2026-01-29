@@ -1,0 +1,25 @@
+{
+  "configurations": [
+    {
+      "name": "iOS",
+      "includePath": [
+        "${workspaceFolder}/**",
+        "${workspaceFolder}/ios/Runner",
+        "${workspaceFolder}/build/ios/Debug-iphonesimulator",
+        "${workspaceFolder}/build/ios/Debug-iphonesimulator/Flutter.framework/Headers",
+        "${workspaceFolder}/ios/Pods/Headers/Public/**",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator.sdk/usr/include",
+        "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include"
+      ],
+      "defines": [],
+      "macFrameworkPath": [
+        "/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator.sdk/System/Library/Frameworks"
+      ],
+      "compilerPath": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang",
+      "cStandard": "c17",
+      "cppStandard": "c++17",
+      "intelliSenseMode": "macos-clang-arm64"
+    }
+  ],
+  "version": 4
+}
